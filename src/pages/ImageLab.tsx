@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { toLocalFileUrl } from '../utils/local-file';
 
 // ====================== Constants ======================
 
@@ -342,7 +343,7 @@ function ImageLab() {
               <h3 className="text-sm text-gray-400 uppercase tracking-wide">当前生成</h3>
               <div className="rounded-lg bg-[#0c121c] border border-white/5 overflow-hidden">
                 <img
-                  src={`file://${currentImage}`}
+                  src={toLocalFileUrl(currentImage)}
                   alt="Generated"
                   className="w-full max-h-[500px] object-contain bg-black/20"
                 />
@@ -391,7 +392,7 @@ function ImageLab() {
                     className="group relative aspect-square rounded-lg bg-[#0c121c] border border-white/5 overflow-hidden hover:border-[#34d399]/40 transition-all"
                   >
                     <img
-                      src={`file://${item.imagePath}`}
+                      src={toLocalFileUrl(item.imagePath)}
                       alt={item.prompt}
                       className="w-full h-full object-cover"
                     />
@@ -508,7 +509,7 @@ function ImageLab() {
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <img
-                src={`file://${previewItem.imagePath}`}
+                src={toLocalFileUrl(previewItem.imagePath)}
                 alt={previewItem.prompt}
                 className="w-full max-h-[500px] object-contain rounded-lg"
               />

@@ -11,11 +11,20 @@ export interface ImagenFallbackEntry {
   model?: string;
 }
 
+/** Configuration for LLM backup/fallback provider. */
+export interface LLMBackupEntry {
+  provider: string;  // same values as llm.provider
+  apiKey: string;
+  model?: string;
+}
+
 export interface AppSettings {
   llm: {
-    provider: string;  // 'deepseek' | 'openai' | 'qwen' | 'claude' | 'zhipu' | 'minimax'
+    provider: string;  // 'deepseek' | 'openai' | 'qwen' | 'claude' | 'zhipu' | 'minimax' | 'agnes'
     apiKey: string;
     model?: string;
+    /** Optional backup provider — used automatically when the primary API fails. */
+    backup?: LLMBackupEntry;
   };
   imagen: {
     provider: string;  // 'siliconflow' | 'replicate' | 'jimeng' | 'modelscope'

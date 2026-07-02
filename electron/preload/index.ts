@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('storyforge', {
       ipcRenderer.invoke('pipeline:rerunStep', projectId, stepId),
     updateSegments: (projectId: string, segments: any[]) =>
       ipcRenderer.invoke('project:updateSegments', projectId, segments),
+    updateData: (projectId: string, patch: Record<string, any>) =>
+      ipcRenderer.invoke('project:updateData', projectId, patch),
     onProgress: (callback: (data: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on('pipeline:progress', handler);

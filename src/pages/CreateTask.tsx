@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/app-store';
+import { toLocalFileUrl } from '../utils/local-file';
 
 const TRACKS = [
   '人物故事',
@@ -186,6 +187,12 @@ function CreateTask() {
   // Reference image state
   const [referenceImagePath, setReferenceImagePath] = useState<string>('');
 
+  // Custom prompts state (提示词模板)
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
+  const [customRewritePrompt, setCustomRewritePrompt] = useState('');
+  const [customStoryboardPrompt, setCustomStoryboardPrompt] = useState('');
+  const [customImagePrompt, setCustomImagePrompt] = useState('');
+
   // Load BGM list, templates, custom styles, and cloned voices on mount
   useEffect(() => {
     loadBGMList();
@@ -342,6 +349,10 @@ function CreateTask() {
         setMode(tpl.config.mode || 'semi');
         setRatio((tpl.config.aspectRatio as '9:16' | '16:9') || '9:16');
         setSelectedBgmId(tpl.config.bgmId || '');
+        // 回填提示词模板
+        setCustomRewritePrompt(tpl.config.customPrompts?.rewrite || '');
+        setCustomStoryboardPrompt(tpl.config.customPrompts?.storyboard || '');
+        setCustomImagePrompt(tpl.config.customPrompts?.imagePrompt || '');
       }
     } catch (err) {
       console.error('应用模板失败:', err);
@@ -382,6 +393,11 @@ function CreateTask() {
     if (!templateName.trim()) return;
     try {
       const settings = await window.storyforge?.settings?.get?.();
+      const cpForTemplate: Record<string, string> = {};
+      if (customRewritePrompt.trim()) cpForTemplate.rewrite = customRewritePrompt.trim();
+      if (customStoryboardPrompt.trim()) cpForTemplate.storyboard = customStoryboardPrompt.trim();
+      if (customImagePrompt.trim()) cpForTemplate.imagePrompt = customImagePrompt.trim();
+
       await window.storyforge?.template?.create?.({
         name: templateName.trim(),
         description: templateDesc.trim(),
@@ -396,6 +412,7 @@ function CreateTask() {
           llmProvider: settings?.llm?.provider,
           imagenProvider: settings?.imagen?.provider,
           ttsProvider: settings?.tts?.provider,
+          ...(Object.keys(cpForTemplate).length > 0 ? { customPrompts: cpForTemplate } : {}),
         },
       });
       setShowSaveTemplate(false);
@@ -466,10 +483,13 @@ setPage('list');
       aspectRatio: ratio,
       bgmId: selectedBgmId || undefined,
       referenceImagePath: referenceImagePath || undefined,
-      ...(selectedTemplateId ? (() => {
-        const tpl = templates.find(t => t.id === selectedTemplateId);
-        return tpl?.config?.customPrompts ? { customPrompts: tpl.config.customPrompts } : {};
-      })() : {}),
+      ...(() => {
+        const cp: Record<string, string> = {};
+        if (customRewritePrompt.trim()) cp.rewrite = customRewritePrompt.trim();
+        if (customStoryboardPrompt.trim()) cp.storyboard = customStoryboardPrompt.trim();
+        if (customImagePrompt.trim()) cp.imagePrompt = customImagePrompt.trim();
+        return Object.keys(cp).length > 0 ? { customPrompts: cp } : {};
+      })(),
     };
 
     setLoading(true);
@@ -644,7 +664,7 @@ setPage('list');
           <div className="flex items-center gap-3 rounded-lg bg-white/5 border border-white/10 p-3">
             <div className="w-16 h-16 rounded-lg bg-white/10 overflow-hidden shrink-0">
               <img
-                src={`file://${referenceImagePath}`}
+                src={toLocalFileUrl(referenceImagePath)}
                 alt="参考图"
                 className="w-full h-full object-cover"
               />
@@ -852,6 +872,100 @@ setPage('list');
             <span className="text-sm text-gray-300">16:9 横屏</span>
           </label>
         </div>
+      </div>
+
+      {/* 提示词模板编辑 */}
+      <div className="mt-6">
+        <button
+          onClick={() => setShowPromptEditor(!showPromptEditor)}
+          className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+        >
+          <span className={`text-xs transition-transform ${showPromptEditor ? 'rotate-90' : ''}`}>▶</span>
+          提示词模板
+          <span className="text-xs text-gray-600">
+            {(customRewritePrompt || customStoryboardPrompt || customImagePrompt) ? '（已自定义）' : '（使用默认）'}
+          </span>
+        </button>
+        <p className="mt-1 text-xs text-gray-600">
+          控制 AI 改写规则、分镜拆解方式、出图提示词风格。不同赛道用不同模板，效果差异很大
+        </p>
+
+        {showPromptEditor && (
+          <div className="mt-3 space-y-4 rounded-lg bg-[#0c121c] border border-white/10 p-4">
+            {/* 改写提示词 */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs text-gray-400 font-medium">Step 1 · 改写规则</label>
+                {customRewritePrompt && (
+                  <button
+                    onClick={() => setCustomRewritePrompt('')}
+                    className="text-[10px] text-red-400/70 hover:text-red-400 transition-colors"
+                  >
+                    恢复默认
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-600 mb-1">控制文案改写的语气、风格、结构。留空使用默认模板</p>
+              <textarea
+                value={customRewritePrompt}
+                onChange={(e) => setCustomRewritePrompt(e.target.value)}
+                placeholder={"默认：专业短视频口播文案改写专家。保留核心故事，口语化表达，开头有 hook，节奏紧凑，结尾升华..."}
+                rows={3}
+                className="w-full rounded bg-[#070b11] border border-white/10 px-3 py-2 text-xs text-gray-300 placeholder-gray-700 resize-none focus:outline-none focus:border-[#34d399] transition-colors"
+              />
+            </div>
+
+            {/* 分镜提示词 */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs text-gray-400 font-medium">Step 3 · 分镜拆解规则</label>
+                {customStoryboardPrompt && (
+                  <button
+                    onClick={() => setCustomStoryboardPrompt('')}
+                    className="text-[10px] text-red-400/70 hover:text-red-400 transition-colors"
+                  >
+                    恢复默认
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-600 mb-1">控制分镜拆解方式：每个分镜几句话、画面描述风格、情绪标签</p>
+              <textarea
+                value={customStoryboardPrompt}
+                onChange={(e) => setCustomStoryboardPrompt(e.target.value)}
+                placeholder={"默认：影视分镜师，每个分镜 1-2 句话，生成 visual 画面描述（英文）和 mood 情绪标签，画面风格统一..."}
+                rows={3}
+                className="w-full rounded bg-[#070b11] border border-white/10 px-3 py-2 text-xs text-gray-300 placeholder-gray-700 resize-none focus:outline-none focus:border-[#34d399] transition-colors"
+              />
+            </div>
+
+            {/* 出图提示词 */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs text-gray-400 font-medium">Step 4 · 出图提示词规则</label>
+                {customImagePrompt && (
+                  <button
+                    onClick={() => setCustomImagePrompt('')}
+                    className="text-[10px] text-red-400/70 hover:text-red-400 transition-colors"
+                  >
+                    恢复默认
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-600 mb-1">控制 AI 绘图提示词的生成策略：词数、角色一致性、摄影风格</p>
+              <textarea
+                value={customImagePrompt}
+                onChange={(e) => setCustomImagePrompt(e.target.value)}
+                placeholder={"默认：每个 prompt 80-120 词，包含主体外观、场景环境、镜头构图、光线方向、情绪氛围。角色外观在全部分镜中保持一致..."}
+                rows={3}
+                className="w-full rounded bg-[#070b11] border border-white/10 px-3 py-2 text-xs text-gray-300 placeholder-gray-700 resize-none focus:outline-none focus:border-[#34d399] transition-colors"
+              />
+            </div>
+
+            <p className="text-[10px] text-gray-600 leading-relaxed">
+              切换不同模板 = 整套创作规则全部跟着切换。保存为模板后，下次创建任务可一键复用
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 提交按钮 */}

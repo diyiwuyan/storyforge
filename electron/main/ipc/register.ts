@@ -109,6 +109,22 @@ export function registerIpcHandlers(): void {
     return { success: true };
   });
 
+  // --- 通用数据更新（内联编辑用） ---
+
+  ipcMain.handle(
+    'project:updateData',
+    async (_event, projectId: string, patch: Record<string, any>) => {
+      const state = pipelineEngine.getState(projectId);
+      Object.assign(state.data, patch);
+      state.updatedAt = Date.now();
+      pipelineEngine.cacheState(state);
+      const projectDir = pipelineEngine.getProjectDir(projectId);
+      const stateFile = path.join(projectDir, 'state.json');
+      fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), 'utf-8');
+      return { success: true };
+    },
+  );
+
   // --- 生图实验室 & 单图重生成 ---
 
   ipcMain.handle(

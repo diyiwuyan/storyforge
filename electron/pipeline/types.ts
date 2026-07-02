@@ -2,14 +2,14 @@
 // StoryForge Pipeline Type Definitions
 // ============================================================
 
-/** Ordered step identifiers matching the 7-step pipeline. */
-export type StepId = 'review' | 'rewrite' | 'storyboard' | 'prompt' | 'imagen' | 'tts' | 'capcut';
+/** Ordered step identifiers matching the 8-step pipeline. */
+export type StepId = 'review' | 'rewrite' | 'storyboard' | 'prompt' | 'imagen' | 'tts' | 'capcut' | 'compose';
 
 /** Lifecycle status of a single pipeline step. */
 export type StepStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'stale' | 'skipped';
 
 /** Canonical step execution order. */
-export const STEP_ORDER: StepId[] = ['review', 'rewrite', 'storyboard', 'prompt', 'imagen', 'tts', 'capcut'];
+export const STEP_ORDER: StepId[] = ['review', 'rewrite', 'storyboard', 'prompt', 'imagen', 'tts', 'capcut', 'compose'];
 
 /**
  * Downstream cascade map: when a step is re-run, all listed
@@ -19,13 +19,14 @@ export const STEP_ORDER: StepId[] = ['review', 'rewrite', 'storyboard', 'prompt'
  * is the rewritten body, not the storyboard segments.
  */
 export const DOWNSTREAM_MAP: Record<StepId, StepId[]> = {
-  review:     ['rewrite', 'storyboard', 'prompt', 'imagen', 'tts', 'capcut'],
-  rewrite:    ['storyboard', 'prompt', 'imagen', 'tts', 'capcut'],
-  storyboard: ['prompt', 'imagen', 'capcut'],
-  prompt:     ['imagen', 'capcut'],
-  imagen:     ['capcut'],
-  tts:        ['capcut'],
-  capcut:     [],
+  review:     ['rewrite', 'storyboard', 'prompt', 'imagen', 'tts', 'capcut', 'compose'],
+  rewrite:    ['storyboard', 'prompt', 'imagen', 'tts', 'capcut', 'compose'],
+  storyboard: ['prompt', 'imagen', 'capcut', 'compose'],
+  prompt:     ['imagen', 'capcut', 'compose'],
+  imagen:     ['capcut', 'compose'],
+  tts:        ['capcut', 'compose'],
+  capcut:     ['compose'],
+  compose:    [],
 };
 
 // ------------------------------------------------------------
@@ -50,6 +51,8 @@ export interface StepState {
 export interface Segment {
   index: number;
   text: string;             // narration / subtitle text
+  visual?: string;          // visual scene description in English (Step 3 output)
+  mood?: string;            // emotional mood tag (Step 3 output)
   imagePrompt?: string;     // painting prompt (Step 4 output)
   negativePrompt?: string;  // elements to exclude from image generation
   imagePath?: string;       // generated image path (Step 5 output)
@@ -102,6 +105,10 @@ export interface PipelineData {
 
   // Step 7: capcut
   draftPath?: string;
+
+  // Step 8: compose (视频合成)
+  videoPath?: string;
+  videoDuration?: number;
 }
 
 // ------------------------------------------------------------

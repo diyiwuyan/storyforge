@@ -4,8 +4,7 @@
 
 import { BaseStep } from '../base-step';
 import { StepId, StepContext, StepResult } from '../types';
-import { createLLMProvider } from '../../providers/llm/factory';
-import { getSettings } from '../../store/settings';
+import { createLLMWithFallback } from '../../providers/llm/factory';
 
 /**
  * RewriteStep calls an LLM to rewrite the cleaned text into
@@ -33,13 +32,8 @@ export class RewriteStep extends BaseStep {
 
     ctx.onProgress(10, '初始化 LLM 服务...');
 
-    // Get LLM settings and create provider
-    const settings = getSettings();
-    const llm = createLLMProvider({
-      provider: settings.llm.provider,
-      apiKey: settings.llm.apiKey,
-      model: settings.llm.model,
-    });
+    // Create LLM provider (with automatic fallback if backup configured)
+    const llm = createLLMWithFallback();
 
     // Check cancellation
     if (ctx.signal.aborted) {

@@ -18,6 +18,26 @@ const IMAGE_PROVIDERS = [
   { value: 'agnes', label: 'Agnes AI（免费额度）' },
 ];
 
+/** Default model hints per imagen provider — shown as placeholder, also used when model field is empty */
+const IMAGEN_DEFAULT_MODELS: Record<string, string> = {
+  siliconflow: 'FLUX.1-schnell',
+  replicate: 'black-forest-labs/flux-schnell',
+  jimeng: 'jimeng-2.1',
+  modelscope: 'flux-merged',
+  agnes: 'agnes-image-2.1-flash',
+};
+
+/** Default model hints per LLM provider */
+const LLM_DEFAULT_MODELS: Record<string, string> = {
+  deepseek: 'deepseek-chat',
+  openai: 'gpt-4o-mini',
+  qwen: 'qwen-plus',
+  claude: 'claude-sonnet-4-20250514',
+  zhipu: 'glm-4-flash',
+  minimax: 'MiniMax-Text-01',
+  agnes: 'agnes-2.0-flash',
+};
+
 const TTS_PROVIDERS = [
   { value: 'edge', label: 'Edge TTS（免费）' },
   { value: 'volcano', label: '火山引擎' },
@@ -39,6 +59,10 @@ function Settings() {
   const [draftsDir, setDraftsDir] = useState('');
   const [asrEnabled, setAsrEnabled] = useState(false);
   const [asrApiKey, setAsrApiKey] = useState('');
+  const [llmBackupEnabled, setLlmBackupEnabled] = useState(false);
+  const [llmBackupProvider, setLlmBackupProvider] = useState('agnes');
+  const [llmBackupKey, setLlmBackupKey] = useState('');
+  const [llmBackupModel, setLlmBackupModel] = useState('');
   const [fallbackEnabled, setFallbackEnabled] = useState(false);
   const [fallbackProviders, setFallbackProviders] = useState<Array<{provider: string; apiKey: string}>>([]);
   const [saving, setSaving] = useState(false);
@@ -86,6 +110,10 @@ function Settings() {
         setDraftsDir(s.capcutDraftsDir || '');
         setAsrEnabled(!!s.asr?.apiKey);
         setAsrApiKey(s.asr?.apiKey || '');
+        setLlmBackupEnabled(!!s.llm?.backup?.apiKey);
+        setLlmBackupProvider(s.llm?.backup?.provider || 'agnes');
+        setLlmBackupKey(s.llm?.backup?.apiKey || '');
+        setLlmBackupModel(s.llm?.backup?.model || '');
         setFallbackEnabled(!!s.imagen?.fallbackProviders?.length);
         setFallbackProviders(s.imagen?.fallbackProviders || []);
       }
@@ -174,7 +202,14 @@ function Settings() {
     setSaved(false);
     try {
       await window.storyforge.settings.set({
-        llm: { provider: llmProvider, apiKey: llmKey, model: llmModel || undefined },
+        llm: {
+          provider: llmProvider,
+          apiKey: llmKey,
+          model: llmModel || undefined,
+          ...(llmBackupEnabled && llmBackupKey ? {
+            backup: { provider: llmBackupProvider, apiKey: llmBackupKey, model: llmBackupModel || undefined },
+          } : {}),
+        },
         imagen: {
           provider: imageProvider,
           apiKey: imageKey,
@@ -263,10 +298,66 @@ function Settings() {
               type="text"
               value={llmModel}
               onChange={(e) => setLlmModel(e.target.value)}
-              placeholder="留空则使用默认模型"
+              placeholder={`留空则使用默认: ${LLM_DEFAULT_MODELS[llmProvider] || '默认模型'}`}
               className="w-full rounded-lg bg-[#0c121c] border border-white/10 px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-[#34d399] transition-colors"
             />
           </div>
+        </div>
+      </section>
+
+      {/* LLM 备用 API */}
+      <section className="mt-6">
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={llmBackupEnabled}
+              onChange={(e) => setLlmBackupEnabled(e.target.checked)}
+              className="accent-[#34d399]"
+            />
+            <span className="text-sm text-gray-300">启用备用 LLM API</span>
+          </label>
+          <p className="text-xs text-gray-600">
+            当主 API 调用失败时（网络超时、余额不足、服务异常），自动切换到备用 API 继续执行
+          </p>
+          {llmBackupEnabled && (
+            <div className="space-y-3 mt-2 pl-1 border-l-2 border-[#34d399]/30 ml-1">
+              <div className="pl-3">
+                <label className="block text-xs text-gray-500 mb-1">备用服务提供商</label>
+                <select
+                  value={llmBackupProvider}
+                  onChange={(e) => setLlmBackupProvider(e.target.value)}
+                  className="w-full rounded-lg bg-[#0c121c] border border-white/10 px-4 py-2.5 text-sm text-gray-200 focus:outline-none focus:border-[#34d399] transition-colors appearance-none cursor-pointer"
+                >
+                  {LLM_PROVIDERS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="pl-3">
+                <label className="block text-xs text-gray-500 mb-1">备用 API Key</label>
+                <input
+                  type="password"
+                  value={llmBackupKey}
+                  onChange={(e) => setLlmBackupKey(e.target.value)}
+                  placeholder="备用服务的 API Key"
+                  className="w-full rounded-lg bg-[#0c121c] border border-white/10 px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-[#34d399] transition-colors"
+                />
+              </div>
+              <div className="pl-3">
+                <label className="block text-xs text-gray-500 mb-1">备用模型名称（可选）</label>
+                <input
+                  type="text"
+                  value={llmBackupModel}
+                  onChange={(e) => setLlmBackupModel(e.target.value)}
+                  placeholder={`留空则使用默认: ${LLM_DEFAULT_MODELS[llmBackupProvider] || '默认模型'}`}
+                  className="w-full rounded-lg bg-[#0c121c] border border-white/10 px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-[#34d399] transition-colors"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -304,7 +395,7 @@ function Settings() {
               type="text"
               value={imagenModel}
               onChange={(e) => setImagenModel(e.target.value)}
-              placeholder="留空则使用默认模型"
+              placeholder={`留空则使用默认: ${IMAGEN_DEFAULT_MODELS[imageProvider] || '默认模型'}`}
               className="w-full rounded-lg bg-[#0c121c] border border-white/10 px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-[#34d399] transition-colors"
             />
           </div>

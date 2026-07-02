@@ -9,34 +9,45 @@ import { initAutoUpdater } from '../updater/auto-updater';
 // 判断是否为开发模式
 const isDev = !app.isPackaged;
 
-app.whenReady().then(() => {
-  // 设置中文菜单
-  Menu.setApplicationMenu(buildAppMenu());
-  // 注册所有 pipeline 步骤（必须在 IPC handlers 之前）
-  registerAllSteps();
+app.whenReady().then(async () => {
+  try {
+    console.log('[Main] app ready, initializing...');
 
-  // 注册所有 IPC handlers
-  registerIpcHandlers();
+    // 设置中文菜单
+    Menu.setApplicationMenu(buildAppMenu());
+    // 注册所有 pipeline 步骤（必须在 IPC handlers 之前）
+    registerAllSteps();
 
-  // 初始化自动更新（仅在打包后生效）
-  initAutoUpdater().catch((err) => {
-    console.warn('[Main] Auto-updater init failed:', err);
-  });
+    // 注册所有 IPC handlers
+    registerIpcHandlers();
 
-  // 创建主窗口
-  const mainWindow = createMainWindow();
-
-  // 加载页面
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
-    // F12 打开 DevTools
-    mainWindow.webContents.on('before-input-event', (_e, input) => {
-      if (input.key === 'F12') {
-        mainWindow.webContents.toggleDevTools();
-      }
+    // 初始化自动更新（仅在打包后生效）
+    initAutoUpdater().catch((err) => {
+      console.warn('[Main] Auto-updater init failed:', err);
     });
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'index.html'));
+
+    console.log('[Main] Creating main window...');
+
+    // 创建主窗口
+    const mainWindow = createMainWindow();
+
+    // 加载页面
+    if (isDev) {
+      console.log('[Main] Loading dev URL http://localhost:5173');
+      mainWindow.loadURL('http://localhost:5173');
+      // F12 打开 DevTools
+      mainWindow.webContents.on('before-input-event', (_e, input) => {
+        if (input.key === 'F12') {
+          mainWindow.webContents.toggleDevTools();
+        }
+      });
+    } else {
+      mainWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'index.html'));
+    }
+
+    console.log('[Main] Window created successfully');
+  } catch (err) {
+    console.error('[Main] FATAL ERROR during startup:', err);
   }
 });
 

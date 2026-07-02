@@ -38,22 +38,38 @@ export class AgnesImagenProvider implements ImagenProvider {
     const width = options.width ?? 1024;
     const height = options.height ?? 1024;
 
+    // Agnes AI does NOT support `response_format` — it always returns a URL.
     const body: Record<string, unknown> = {
       model: options.model ?? this.defaultModel,
       prompt: options.prompt,
       size: `${width}x${height}`,
       n: 1,
-      response_format: 'b64_json',
     };
 
-    const res = await fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
+    // 180-second timeout — image generation can be slow
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180_000);
+
+    let res: Response;
+    try {
+      res = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (fetchErr: unknown) {
+      clearTimeout(timeoutId);
+      if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+        throw new Error('[Agnes AI 生图] 请求超时（180 秒），请检查网络或稍后重试');
+      }
+      throw new Error(`[Agnes AI 生图] 网络请求失败: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`);
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');

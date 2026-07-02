@@ -31,14 +31,30 @@ export class DeepSeekProvider implements LLMProvider {
       max_tokens: options?.maxTokens ?? 4096,
     };
 
-    const res = await fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
+    // 120-second timeout to handle slow responses gracefully
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120_000);
+
+    let res: Response;
+    try {
+      res = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (fetchErr: unknown) {
+      clearTimeout(timeoutId);
+      if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+        throw new Error('[DeepSeek] API 请求超时（120 秒），请检查网络或更换服务商');
+      }
+      throw new Error(`[DeepSeek] 网络请求失败: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`);
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');

@@ -13,6 +13,8 @@ export function createMainWindow(): BrowserWindow {
       preload: path.join(__dirname, '..', 'preload', 'index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // 允许渲染进程通过 file:// 加载本地图片和音频（预览播放需要）
+      webSecurity: false,
     },
   });
 

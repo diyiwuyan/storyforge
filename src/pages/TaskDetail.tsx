@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAppStore, STEP_NAMES, STEP_IDS, type StepState } from '../store/app-store';
 
+import { toLocalFileUrl } from '../utils/local-file';
+
 // ====================== 子组件 ======================
 
 function StepIcon({ status }: { status: string }) {
@@ -557,9 +559,9 @@ function ImageGridWithRegenerate({
               <img
                 src={
                   img.imagePath
-                    ? `file://${img.imagePath}`
-                    : img.path
-                    ? `file://${img.path}`
+? toLocalFileUrl(img.imagePath)
+                : img.path
+                ? toLocalFileUrl(img.path)
                     : img.url
                 }
                 alt={`Scene ${idx + 1}`}
@@ -691,7 +693,7 @@ function CompletionPanel({
           <span className="text-4xl">&#10003;</span>
         </div>
         <h3 className="text-xl font-bold text-gray-100">
-          剪映草稿已生成
+          {data.videoPath ? '视频已合成' : '剪映草稿已生成'}
         </h3>
         <p className="mt-2 text-sm text-gray-500">
           所有步骤已完成，可以进行下一步操作
@@ -768,79 +770,105 @@ function CompletionPanel({
       </div>
 
       {/* Preview Panel */}
-      {showPreview && segments.length > 0 && (
+      {showPreview && (
         <div className="w-full max-w-md mt-6 px-4">
           <div className="rounded-xl bg-[#0c121c] border border-white/10 overflow-hidden">
-            {/* 图片展示区 */}
-            <div className="relative aspect-[9/16] bg-black">
-              {segments[currentSlide]?.imagePath && (
-                <img
-                  src={`file://${segments[currentSlide].imagePath}`}
-                  alt={`Scene ${currentSlide + 1}`}
-                  className="w-full h-full object-cover"
-                />
-              )}
-              {/* 字幕叠加 */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                <p className="text-white text-sm text-center leading-relaxed">
-                  {segments[currentSlide]?.text || ''}
-                </p>
-              </div>
-              {/* 分镜进度条 */}
-              <div className="absolute top-2 left-2 right-2 flex gap-1">
-                {segments.map((_: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className={`h-0.5 flex-1 rounded-full transition-colors ${
-                      idx < currentSlide ? 'bg-white/60' :
-                      idx === currentSlide ? 'bg-[#34d399]' : 'bg-white/20'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-            {/* 控制栏 */}
-            <div className="flex items-center justify-between px-4 py-3">
-              <button
-                onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
-                disabled={currentSlide === 0}
-                className="px-3 py-1 rounded text-xs text-gray-400 hover:text-white disabled:opacity-30 transition-colors"
-              >
-                ◀ 上一镜
-              </button>
-              <span className="text-xs text-gray-500">
-                {currentSlide + 1} / {segments.length}
-              </span>
-              <button
-                onClick={() => setCurrentSlide(Math.min(segments.length - 1, currentSlide + 1))}
-                disabled={currentSlide >= segments.length - 1}
-                className="px-3 py-1 rounded text-xs text-gray-400 hover:text-white disabled:opacity-30 transition-colors"
-              >
-                下一镜 ▶
-              </button>
-            </div>
-            {/* 音频播放器 */}
-            {data.audioPath && (
-              <div className="px-4 pb-3">
-                <audio
+            {/* 有合成视频时直接播放 MP4 */}
+            {data.videoPath ? (
+              <div className="flex flex-col items-center">
+                <video
                   controls
-                  className="w-full h-8"
-                  src={`file://${data.audioPath}`}
-                  onTimeUpdate={(e) => {
-                    const currentTime = (e.target as HTMLAudioElement).currentTime;
-                    let accumulated = 0;
-                    for (let i = 0; i < segments.length; i++) {
-                      accumulated += segments[i].duration || 5;
-                      if (currentTime < accumulated) {
-                        if (currentSlideRef.current !== i) setCurrentSlide(i);
-                        break;
-                      }
-                    }
-                  }}
+                  autoPlay
+                  className="w-full aspect-[9/16] bg-black rounded"
+                  src={toLocalFileUrl(data.videoPath)}
                 >
-                  浏览器不支持音频播放
-                </audio>
+                  浏览器不支持视频播放
+                </video>
+                <div className="flex items-center gap-3 px-4 py-2 text-xs text-gray-500">
+                  {data.videoDuration && <span>时长：{Math.round(data.videoDuration)}s</span>}
+                  <button
+                    onClick={() => {
+                      const dir = data.videoPath.replace(/[/\\][^/\\]+$/, '');
+                      window.storyforge.system.openFolder(dir);
+                    }}
+                    className="text-[#34d399] hover:underline"
+                  >
+                    打开视频目录
+                  </button>
+                </div>
               </div>
+            ) : segments.length > 0 ? (
+              <>
+                {/* 图片幻灯片预览（无合成视频时的回退） */}
+                <div className="relative aspect-[9/16] bg-black">
+                  {segments[currentSlide]?.imagePath && (
+                    <img
+                      src={toLocalFileUrl(segments[currentSlide].imagePath)}
+                      alt={`Scene ${currentSlide + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                    <p className="text-white text-sm text-center leading-relaxed">
+                      {segments[currentSlide]?.text || ''}
+                    </p>
+                  </div>
+                  <div className="absolute top-2 left-2 right-2 flex gap-1">
+                    {segments.map((_: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className={`h-0.5 flex-1 rounded-full transition-colors ${
+                          idx < currentSlide ? 'bg-white/60' :
+                          idx === currentSlide ? 'bg-[#34d399]' : 'bg-white/20'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <button
+                    onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+                    disabled={currentSlide === 0}
+                    className="px-3 py-1 rounded text-xs text-gray-400 hover:text-white disabled:opacity-30 transition-colors"
+                  >
+                    ◀ 上一镜
+                  </button>
+                  <span className="text-xs text-gray-500">
+                    {currentSlide + 1} / {segments.length}
+                  </span>
+                  <button
+                    onClick={() => setCurrentSlide(Math.min(segments.length - 1, currentSlide + 1))}
+                    disabled={currentSlide >= segments.length - 1}
+                    className="px-3 py-1 rounded text-xs text-gray-400 hover:text-white disabled:opacity-30 transition-colors"
+                  >
+                    下一镜 ▶
+                  </button>
+                </div>
+                {data.audioPath && (
+                  <div className="px-4 pb-3">
+                    <audio
+                      controls
+                      className="w-full h-8"
+                      src={toLocalFileUrl(data.audioPath)}
+                      onTimeUpdate={(e) => {
+                        const currentTime = (e.target as HTMLAudioElement).currentTime;
+                        let accumulated = 0;
+                        for (let i = 0; i < segments.length; i++) {
+                          accumulated += segments[i].duration || 5;
+                          if (currentTime < accumulated) {
+                            if (currentSlideRef.current !== i) setCurrentSlide(i);
+                            break;
+                          }
+                        }
+                      }}
+                    >
+                      浏览器不支持音频播放
+                    </audio>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="p-8 text-center text-gray-500 text-sm">暂无预览内容</div>
             )}
           </div>
         </div>
@@ -911,6 +939,373 @@ function CompletionPanel({
   );
 }
 
+// ====================== 内联编辑面板组件 ======================
+
+/** 改写文案编辑面板 */
+function RewriteEditPanel({
+  project,
+  onSaveAndRerun,
+}: {
+  project: any;
+  onSaveAndRerun: (body: string) => Promise<void>;
+}) {
+  const data = project.data || {};
+  const [isEditing, setIsEditing] = useState(false);
+  const [editBody, setEditBody] = useState(data.rewrittenBody || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSaveAndRerun(editBody);
+      setIsEditing(false);
+    } catch (err) {
+      console.error('保存失败:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-xs text-gray-500 uppercase tracking-wide">
+          智能改写 - 输出
+        </h4>
+        {!isEditing ? (
+          <button
+            onClick={() => { setEditBody(data.rewrittenBody || ''); setIsEditing(true); }}
+            className="px-3 py-1 rounded text-xs text-[#34d399] bg-[#34d399]/10 border border-[#34d399]/30 hover:bg-[#34d399]/20 transition-colors"
+          >
+            编辑文案
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIsEditing(false)}
+              className="px-3 py-1 rounded text-xs text-gray-400 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-3 py-1 rounded text-xs text-white bg-gradient-to-r from-[#34d399] to-[#059669] hover:from-[#2cc88e] hover:to-[#047857] disabled:opacity-40 transition-all"
+            >
+              {saving ? '保存中...' : '保存并重跑下游'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 标题 */}
+      {data.rewrittenTitle && (
+        <div className="rounded-lg bg-[#0c121c] border border-white/5 p-3 mb-2">
+          <p className="text-xs text-gray-500 mb-1">标题</p>
+          <p className="text-sm text-gray-200 font-medium">{data.rewrittenTitle}</p>
+        </div>
+      )}
+
+      {/* 正文 */}
+      <div className="rounded-lg bg-[#0c121c] border border-white/5 p-3 mb-2">
+        <p className="text-xs text-gray-500 mb-1">正文</p>
+        {isEditing ? (
+          <textarea
+            value={editBody}
+            onChange={(e) => setEditBody(e.target.value)}
+            rows={12}
+            className="w-full rounded bg-[#070b11] border border-white/10 px-3 py-2 text-sm text-gray-200 resize-none focus:outline-none focus:border-[#34d399] transition-colors"
+          />
+        ) : (
+          <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+            {data.rewrittenBody || ''}
+          </p>
+        )}
+      </div>
+
+      {/* 标签 */}
+      {data.hashtags?.length > 0 && (
+        <div className="rounded-lg bg-[#0c121c] border border-white/5 p-3 mb-2">
+          <p className="text-xs text-gray-500 mb-2">话题标签</p>
+          <div className="flex flex-wrap gap-1.5">
+            {data.hashtags.map((tag: string, i: number) => (
+              <span key={i} className="px-2 py-0.5 rounded-full text-xs bg-[#34d399]/10 text-[#34d399]">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 评论预埋 */}
+      {data.comments?.length > 0 && (
+        <div className="rounded-lg bg-[#0c121c] border border-white/5 p-3">
+          <p className="text-xs text-gray-500 mb-2">评论预埋</p>
+          <div className="space-y-1.5">
+            {data.comments.map((c: string, i: number) => (
+              <p key={i} className="text-sm text-gray-400">{c}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isEditing && (
+        <p className="mt-2 text-xs text-gray-600">
+          保存后将自动重跑「影视分镜」及其下游步骤
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** 分镜编辑面板 */
+function StoryboardEditPanel({
+  scenes,
+  onSaveAndRerun,
+}: {
+  scenes: any[];
+  onSaveAndRerun: (scenes: any[]) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editScenes, setEditScenes] = useState<any[]>(() => scenes.map(s => ({ ...s })));
+  const [saving, setSaving] = useState(false);
+
+  // sync when scenes prop changes
+  useEffect(() => {
+    if (!isEditing) setEditScenes(scenes.map(s => ({ ...s })));
+  }, [scenes, isEditing]);
+
+  const handleFieldChange = (idx: number, field: string, value: string) => {
+    setEditScenes(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: value };
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSaveAndRerun(editScenes);
+      setIsEditing(false);
+    } catch (err) {
+      console.error('保存失败:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-xs text-gray-500 uppercase tracking-wide">
+          影视分镜 - {editScenes.length} 个场景
+        </h4>
+        {!isEditing ? (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="px-3 py-1 rounded text-xs text-[#34d399] bg-[#34d399]/10 border border-[#34d399]/30 hover:bg-[#34d399]/20 transition-colors"
+          >
+            编辑分镜
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setEditScenes(scenes.map(s => ({ ...s }))); setIsEditing(false); }}
+              className="px-3 py-1 rounded text-xs text-gray-400 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-3 py-1 rounded text-xs text-white bg-gradient-to-r from-[#34d399] to-[#059669] hover:from-[#2cc88e] hover:to-[#047857] disabled:opacity-40 transition-all"
+            >
+              {saving ? '保存中...' : '保存并重跑下游'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {editScenes.map((scene: any, idx: number) => (
+          <div key={idx} className="rounded-lg bg-[#0c121c] border border-white/5 p-3">
+            <div className="flex items-start gap-3">
+              <span className="shrink-0 w-6 h-6 flex items-center justify-center rounded bg-white/5 text-xs text-gray-500 mt-0.5">
+                {idx + 1}
+              </span>
+              <div className="flex-1 min-w-0 space-y-2">
+                {/* 口播文本 */}
+                {isEditing ? (
+                  <textarea
+                    value={scene.narration || scene.text || ''}
+                    onChange={(e) => handleFieldChange(idx, 'text', e.target.value)}
+                    rows={2}
+                    className="w-full rounded bg-[#070b11] border border-white/10 px-2 py-1.5 text-sm text-gray-200 resize-none focus:outline-none focus:border-[#34d399] transition-colors"
+                  />
+                ) : (
+                  <p className="text-sm text-gray-300">{scene.narration || scene.text || ''}</p>
+                )}
+
+                {/* 画面描述 */}
+                {(scene.visual || isEditing) && (
+                  <div>
+                    <p className="text-[10px] text-gray-600 mb-0.5">Visual</p>
+                    {isEditing ? (
+                      <input
+                        value={scene.visual || ''}
+                        onChange={(e) => handleFieldChange(idx, 'visual', e.target.value)}
+                        className="w-full rounded bg-[#070b11] border border-white/10 px-2 py-1 text-xs text-gray-400 focus:outline-none focus:border-[#34d399] transition-colors"
+                        placeholder="英文画面描述..."
+                      />
+                    ) : (
+                      <p className="text-xs text-gray-500">{scene.visual}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* 情绪 + 时长 */}
+                <div className="flex items-center gap-3 text-xs text-gray-600">
+                  {(scene.mood || isEditing) && (
+                    <span className="flex items-center gap-1">
+                      {isEditing ? (
+                        <input
+                          value={scene.mood || ''}
+                          onChange={(e) => handleFieldChange(idx, 'mood', e.target.value)}
+                          className="w-20 rounded bg-[#070b11] border border-white/10 px-1.5 py-0.5 text-xs text-gray-400 focus:outline-none focus:border-[#34d399] transition-colors"
+                          placeholder="情绪"
+                        />
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded bg-white/5 text-gray-500">{scene.mood}</span>
+                      )}
+                    </span>
+                  )}
+                  {scene.duration && <span>{scene.duration}s</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {isEditing && (
+        <p className="mt-2 text-xs text-gray-600">
+          保存后将自动重跑「提示词生成」及其下游步骤
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** 提示词编辑面板 */
+function PromptEditPanel({
+  segments,
+  onSaveAndRerun,
+}: {
+  segments: any[];
+  onSaveAndRerun: (segments: any[]) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editSegments, setEditSegments] = useState<any[]>(() => segments.map(s => ({ ...s })));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) setEditSegments(segments.map(s => ({ ...s })));
+  }, [segments, isEditing]);
+
+  const handlePromptChange = (idx: number, value: string) => {
+    setEditSegments(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], imagePrompt: value };
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSaveAndRerun(editSegments);
+      setIsEditing(false);
+    } catch (err) {
+      console.error('保存失败:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const promptSegments = segments.filter((s: any) => s.imagePrompt);
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-xs text-gray-500 uppercase tracking-wide">
+          提示词 - {promptSegments.length} 条
+        </h4>
+        {!isEditing ? (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="px-3 py-1 rounded text-xs text-[#34d399] bg-[#34d399]/10 border border-[#34d399]/30 hover:bg-[#34d399]/20 transition-colors"
+          >
+            编辑提示词
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setEditSegments(segments.map(s => ({ ...s }))); setIsEditing(false); }}
+              className="px-3 py-1 rounded text-xs text-gray-400 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-3 py-1 rounded text-xs text-white bg-gradient-to-r from-[#34d399] to-[#059669] hover:from-[#2cc88e] hover:to-[#047857] disabled:opacity-40 transition-all"
+            >
+              {saving ? '保存中...' : '保存并重跑下游'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {editSegments.map((seg: any, idx: number) => {
+          if (!seg.imagePrompt && !isEditing) return null;
+          return (
+            <div key={idx} className="rounded-lg bg-[#0c121c] border border-white/5 p-3">
+              <div className="flex items-start gap-3">
+                <span className="shrink-0 w-6 h-6 flex items-center justify-center rounded bg-white/5 text-xs text-gray-500 mt-0.5">
+                  {idx + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  {/* 口播文本预览 */}
+                  <p className="text-xs text-gray-600 mb-1.5 truncate">{seg.text}</p>
+                  {/* 英文提示词 */}
+                  {isEditing ? (
+                    <textarea
+                      value={seg.imagePrompt || ''}
+                      onChange={(e) => handlePromptChange(idx, e.target.value)}
+                      rows={3}
+                      className="w-full rounded bg-[#070b11] border border-white/10 px-2 py-1.5 text-xs text-gray-300 resize-none focus:outline-none focus:border-[#34d399] transition-colors font-mono"
+                    />
+                  ) : (
+                    <p className="text-xs text-gray-400 leading-relaxed">{seg.imagePrompt}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {isEditing && (
+        <p className="mt-2 text-xs text-gray-600">
+          保存后将自动重跑「批量生图」及其下游步骤
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ====================== 输出预览组件 ======================
 
 function OutputPreview({
@@ -949,8 +1344,8 @@ function OutputPreview({
 
   const stepData = project.data?.[displayStep.id];
 
-  // capcut completed: show CompletionPanel
-  if (displayStep.id === 'capcut' && displayStep.status === 'completed') {
+  // compose or capcut completed: show CompletionPanel
+  if ((displayStep.id === 'compose' || displayStep.id === 'capcut') && displayStep.status === 'completed') {
     const allCompleted = project.steps?.every(
       (s: StepState) => s.status === 'completed' || s.status === 'skipped'
     );
@@ -958,12 +1353,20 @@ function OutputPreview({
       return (
         <CompletionPanel
           project={project}
-          onOpenCapcut={() => window.storyforge?.system?.openCapcutDrafts?.()}
+          onOpenCapcut={() => {
+            const dp = project.data?.draftPath;
+            if (dp) {
+              // Open the actual draft directory generated by StoryForge
+              window.storyforge?.system?.openFolder?.(dp);
+            } else {
+              window.storyforge?.system?.openCapcutDrafts?.();
+            }
+          }}
           onOpenFolder={() => {
-            const draftPath = project.data?.draftPath;
-            if (draftPath) {
-              // Open the parent directory of the draft
-              const dirPath = draftPath.replace(/[/\\][^/\\]+$/, '');
+            const dp = project.data?.draftPath;
+            if (dp) {
+              // Open the parent directory containing the draft folder
+              const dirPath = dp.replace(/[/\\][^/\\]+$/, '');
               window.storyforge?.system?.openFolder?.(dirPath);
             } else {
               window.storyforge?.system?.openCapcutDrafts?.();
@@ -975,8 +1378,8 @@ function OutputPreview({
     }
   }
 
-  // review / rewrite: text content
-  if ((displayStep.id === 'review' || displayStep.id === 'rewrite') && stepData) {
+  // review: text content (read-only)
+  if (displayStep.id === 'review' && stepData) {
     return (
       <div className="flex-1 overflow-y-auto">
         <h4 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">
@@ -991,7 +1394,21 @@ function OutputPreview({
     );
   }
 
-  // storyboard: review mode or display
+  // rewrite: editable text
+  if (displayStep.id === 'rewrite' && displayStep.status === 'completed') {
+    return (
+      <RewriteEditPanel
+        project={project}
+        onSaveAndRerun={async (body: string) => {
+          if (!project.id) return;
+          await window.storyforge.pipeline.updateData(project.id, { rewrittenBody: body });
+          await window.storyforge.pipeline.rerunStep(project.id, 'storyboard');
+        }}
+      />
+    );
+  }
+
+  // storyboard: review mode or editable display
   if (displayStep.id === 'storyboard' && stepData) {
     const scenes = Array.isArray(stepData) ? stepData : stepData.scenes || [];
 
@@ -1011,36 +1428,21 @@ function OutputPreview({
     const displayScenes = segments && segments.length > 0 ? segments : scenes;
 
     return (
-      <div className="flex-1 overflow-y-auto">
-        <h4 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">
-          影视分镜 - {displayScenes.length} 个场景
-        </h4>
-        <div className="space-y-2">
-          {displayScenes.map((scene: any, idx: number) => (
-            <div
-              key={idx}
-              className="rounded-lg bg-[#0c121c] border border-white/5 p-3"
-            >
-              <div className="flex items-start gap-3">
-                <span className="shrink-0 w-6 h-6 flex items-center justify-center rounded bg-white/5 text-xs text-gray-500">
-                  {idx + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-300">{scene.narration || scene.text || ''}</p>
-                  {scene.description && (
-                    <p className="mt-1 text-xs text-gray-500">{scene.description}</p>
-                  )}
-                  {scene.duration && (
-                    <p className="mt-1 text-xs text-gray-600">
-                      时长：{scene.duration}s
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <StoryboardEditPanel
+        scenes={displayScenes}
+        onSaveAndRerun={async (editedScenes: any[]) => {
+          if (!project.id) return;
+          const newSegments = editedScenes.map((s: any, idx: number) => ({
+            index: idx,
+            text: s.narration || s.text || '',
+            visual: s.visual,
+            mood: s.mood,
+            duration: s.duration,
+          }));
+          await window.storyforge.pipeline.updateData(project.id, { segments: newSegments });
+          await window.storyforge.pipeline.rerunStep(project.id, 'prompt');
+        }}
+      />
     );
   }
 
@@ -1074,31 +1476,19 @@ function OutputPreview({
     );
   }
 
-  // prompt: prompt list
+  // prompt: editable prompt list
   if (displayStep.id === 'prompt' && stepData) {
     const segments = project.data?.segments || [];
-    const prompts = segments.length > 0
-      ? segments.filter((s: any) => s.imagePrompt).map((s: any) => s.imagePrompt)
-      : Array.isArray(stepData) ? stepData : stepData.prompts || [];
 
     return (
-      <div className="flex-1 overflow-y-auto">
-        <h4 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">
-          提示词 - {prompts.length} 条
-        </h4>
-        <div className="space-y-2">
-          {prompts.map((p: any, idx: number) => (
-            <div
-              key={idx}
-              className="rounded-lg bg-[#0c121c] border border-white/5 p-3"
-            >
-              <p className="text-xs text-gray-400 leading-relaxed">
-                {typeof p === 'string' ? p : p.text || JSON.stringify(p)}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
+      <PromptEditPanel
+        segments={segments}
+        onSaveAndRerun={async (editedSegments: any[]) => {
+          if (!project.id) return;
+          await window.storyforge.pipeline.updateData(project.id, { segments: editedSegments });
+          await window.storyforge.pipeline.rerunStep(project.id, 'imagen');
+        }}
+      />
     );
   }
 
@@ -1118,12 +1508,48 @@ function OutputPreview({
             <audio
               controls
               className="w-full"
-              src={`file://${project.data.audioPath}`}
+              src={toLocalFileUrl(project.data.audioPath)}
             >
               浏览器不支持音频播放
             </audio>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // compose: video playback
+  if (displayStep.id === 'compose' && displayStep.status === 'completed' && project.data?.videoPath) {
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <h4 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">
+          视频合成 - 完成
+        </h4>
+        <div className="rounded-lg bg-[#0c121c] border border-white/5 p-4 flex flex-col items-center">
+          <video
+            controls
+            className="w-full max-h-[70vh] rounded"
+            src={toLocalFileUrl(project.data.videoPath)}
+          >
+            浏览器不支持视频播放
+          </video>
+          <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
+            {project.data.videoDuration && (
+              <span>时长：{Math.round(project.data.videoDuration)}s</span>
+            )}
+            <button
+              onClick={() => {
+                if (project.data?.videoPath) {
+                  const dir = project.data.videoPath.replace(/[/\\][^/\\]+$/, '');
+                  window.storyforge.system.openFolder(dir);
+                }
+              }}
+              className="text-[#34d399] hover:underline"
+            >
+              打开所在目录
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1235,7 +1661,12 @@ function TaskDetail() {
 
   const handleOpenCapcut = async () => {
     try {
-      await window.storyforge.system.openCapcutDrafts();
+      const dp = currentProject?.data?.draftPath;
+      if (dp) {
+        await window.storyforge.system.openFolder(dp);
+      } else {
+        await window.storyforge.system.openCapcutDrafts();
+      }
     } catch (err) {
       console.error('打开剪映失败:', err);
     }

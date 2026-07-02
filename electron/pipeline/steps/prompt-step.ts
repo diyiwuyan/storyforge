@@ -4,8 +4,7 @@
 
 import { BaseStep } from '../base-step';
 import { StepId, StepContext, StepResult, Segment } from '../types';
-import { createLLMProvider } from '../../providers/llm/factory';
-import { getSettings } from '../../store/settings';
+import { createLLMWithFallback } from '../../providers/llm/factory';
 import { STYLE_MAP, DEFAULT_STYLE } from '../../shared/style-constants';
 
 /**
@@ -33,13 +32,8 @@ export class PromptStep extends BaseStep {
 
     ctx.onProgress(10, '初始化 LLM 服务...');
 
-    // Get LLM settings and create provider
-    const settings = getSettings();
-    const llm = createLLMProvider({
-      provider: settings.llm.provider,
-      apiKey: settings.llm.apiKey,
-      model: settings.llm.model,
-    });
+    // Create LLM provider (with automatic fallback if backup configured)
+    const llm = createLLMWithFallback();
 
     // Determine style suffix
     const style = ctx.config.style;
@@ -70,15 +64,16 @@ export class PromptStep extends BaseStep {
 
     ctx.onProgress(20, '构建提示词生成请求...');
 
-    // Build reference image character consistency instructions if provided
-    let characterConsistencyRule = '';
+    // Build character consistency instructions
+    let characterConsistencyRule = `
+7. 角色一致性策略（重要！）：
+   - 在第一个分镜中详细定义主角外观：年龄、性别、发型发色、服装色彩、体型特征
+   - 后续每个分镜必须重复相同的人物描述（如 "a 30-year-old East Asian man with short black hair, wearing a navy blue shirt"）
+   - 不要用模糊表述如 "same character"，要用具体外观特征重复
+   - 如果文案中有多个角色，每个角色都要有固定且一致的描述
+`;
     if (ctx.config.referenceImagePath) {
-      characterConsistencyRule = `
-7. 主角形象参考描述（必须严格遵守）：
-   由于本视频有固定主角形象，请在每个分镜中保持以下人物特征一致：
-   - 你需要根据视频的上下文推断主角的年龄、性别、发型、肤色、体型等特征
-   - 在每个分镜的 prompt 中必须包含一致的人物外观描述
-   - 使用 "same character as before" 或 "consistent character appearance" 等短语强调一致性
+      characterConsistencyRule += `   - 本视频有人像参考图，请确保主角特征与参考图一致
 `;
     }
 
@@ -88,21 +83,30 @@ export class PromptStep extends BaseStep {
 
 画风要求：${styleDisplayName}（${styleSuffix}）
 
+视觉风格锚定（全部分镜必须统一）：
+cinematic photography, warm golden-hour lighting, soft bokeh background, film grain, 35mm lens, shallow depth of field, high detail
+
 生成规则：
-1. 每个 prompt 用英文描述画面内容，50-100 词
-2. 包含主体、场景、动作、光线、构图等元素
-3. 所有 prompt 风格统一，保持视觉一致性
-4. 不要包含文字内容，只描述视觉画面
-5. 每个 prompt 末尾自动附加画风描述
-6. 每个场景对象还需要一个 "negativePrompt" 字段，写出需要排除的元素（如 watermark, text, blurry, deformed 等），不超过 30 词
+1. 每个 prompt 用英文描述画面内容，80-120 词，尽可能具体详细
+2. 包含：主体外观、场景环境、动作姿态、光线方向、镜头构图（特写/中景/远景）、情绪氛围
+3. 所有 prompt 的色调、光线、摄影风格必须统一，确保视觉连贯性
+4. 不要包含任何文字/水印/UI 元素，只描述视觉画面
+5. 每个 prompt 末尾自动附加画风后缀
+6. 每个场景附带 "negativePrompt" 字段，包含要排除的元素，不超过 30 词
 ${characterConsistencyRule}
 请严格以 JSON 数组格式输出（不要包含 markdown 代码块标记）：
 [{"prompt":"第1个分镜的英文绘图提示词","negativePrompt":"需要排除的元素"},{"prompt":"第2个分镜的英文绘图提示词","negativePrompt":"需要排除的元素"},...]
 
 以下是各分镜的口播文本：`;
 
+    // Include visual hints from storyboard if available
     const segmentTexts = segments
-      .map((seg, i) => `分镜${i + 1}：${seg.text}`)
+      .map((seg, i) => {
+        let line = `分镜${i + 1}：${seg.text}`;
+        if (seg.visual) line += `\n   画面描述参考：${seg.visual}`;
+        if (seg.mood) line += `\n   情绪：${seg.mood}`;
+        return line;
+      })
       .join('\n');
 
     ctx.onProgress(30, `为 ${segments.length} 个分镜生成提示词中...`);

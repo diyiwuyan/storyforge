@@ -49,6 +49,7 @@ interface StoryForgeAPI {
     resume: (projectId: string) => Promise<{ success: boolean }>;
     rerunStep: (projectId: string, stepId: string) => Promise<{ success: boolean }>;
     updateSegments: (projectId: string, segments: any[]) => Promise<{ success: boolean }>;
+    updateData: (projectId: string, patch: Record<string, any>) => Promise<{ success: boolean }>;
     onProgress: (callback: (data: any) => void) => () => void;
     onStepChanged: (callback: (data: any) => void) => () => void;
   };

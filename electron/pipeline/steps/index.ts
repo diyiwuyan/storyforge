@@ -10,9 +10,10 @@ import { PromptStep } from './prompt-step';
 import { ImagenStep } from './imagen-step';
 import { TTSStep } from './tts-step';
 import { CapcutStep } from './capcut-step';
+import { ComposeStep } from './compose-step';
 
 /**
- * Register all 7 pipeline steps into the global step registry.
+ * Register all 8 pipeline steps into the global step registry.
  *
  * Call this once during application initialization (e.g. in main/index.ts)
  * before starting any pipeline execution.
@@ -25,6 +26,7 @@ export function registerAllSteps(): void {
   stepRegistry.register(new ImagenStep());
   stepRegistry.register(new TTSStep());
   stepRegistry.register(new CapcutStep());
+  stepRegistry.register(new ComposeStep());
 }
 
 // Re-export step classes for direct use / testing
@@ -35,3 +37,4 @@ export { PromptStep } from './prompt-step';
 export { ImagenStep } from './imagen-step';
 export { TTSStep } from './tts-step';
 export { CapcutStep } from './capcut-step';
+export { ComposeStep } from './compose-step';

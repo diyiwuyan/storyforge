@@ -9,6 +9,7 @@ export const STEP_NAMES: Record<string, string> = {
   imagen: '批量生图',
   tts: 'TTS 配音',
   capcut: '剪映打包',
+  compose: '视频合成',
 };
 
 export const STEP_IDS = Object.keys(STEP_NAMES);
