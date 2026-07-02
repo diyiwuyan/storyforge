@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build intermediates
+dist/
+*.tsbuildinfo
+
+# Compiled JS from TypeScript (electron/ source is .ts, .js is build output)
+electron/**/*.js
+electron/**/*.js.map
+electron/**/*.d.ts
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Screenshots (development artifacts)
+screenshot*.png
+
+# Temp
+*.tmp
+
+# Release — only keep installer .exe, .yml, .blockmap; ignore unpacked dir
+release/win-unpacked/
+release/mac/
+release/linux-unpacked/
+release/builder-effective-config.yml
+# NOTE: release/*.exe, release/latest.yml, release/*.blockmap are committed for distribution

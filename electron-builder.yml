@@ -1,0 +1,50 @@
+appId: com.storyforge.app
+productName: StoryForge
+
+directories:
+  output: release
+
+# 打包文件规则
+files:
+  - dist/**/*
+  - electron/**/*
+  - "!electron/**/*.ts"
+  - "!electron/**/*.map"
+  - "!electron/**/*.tsbuildinfo"
+  - package.json
+
+# asar 打包（加速加载、保护源码）
+asar: true
+
+# 不强制代码签名（没有证书时自动跳过签名）
+forceCodeSigning: false
+
+# ---- Windows ----
+win:
+  target:
+    - nsis
+  # 不设置 certificateFile / certificateSubjectName / sign
+  # 这样 cscInfo 为 null 且 sign 为 null，electron-builder 自动跳过签名
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: StoryForge
+
+# ---- macOS ----
+mac:
+  target:
+    - dmg
+
+# ---- 自动更新发布配置 ----
+# 使用 generic provider：只需将安装包和 latest.yml 放到任意静态文件服务器
+# 发布步骤：
+#   1. npm run build 生成 release/ 目录
+#   2. 将 release/ 下的 .exe 和 latest.yml 上传到下方 url 对应的目录
+#   3. 应用启动后会自动检查 {url}/latest.yml 判断是否有新版本
+publish:
+  provider: github
+  owner: diyiwuyan
+  repo: storyforge
+  private: true
