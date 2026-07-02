@@ -56,6 +56,7 @@ contextBridge.exposeInMainWorld('storyforge', {
     selectFolder: () => ipcRenderer.invoke('system:selectFolder'),
     openFolder: (path: string) => ipcRenderer.invoke('system:openFolder', path),
     openCapcutDrafts: () => ipcRenderer.invoke('system:openCapcutDrafts'),
+    openExternal: (url: string) => ipcRenderer.invoke('system:openExternal', url),
   },
 
   // BGM 库管理

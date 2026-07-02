@@ -14,7 +14,7 @@ import {
 } from '../../providers/imagen/factory';
 import { createLLMProvider } from '../../providers/llm/factory';
 import { LLMProvider } from '../../providers/llm/base';
-import { getSettings } from '../../store/settings';
+import { getSettings, resolveImagenCredentials } from '../../store/settings';
 
 /** Maximum concurrent image generation requests */
 const MAX_CONCURRENCY = 3;
@@ -200,17 +200,22 @@ export class ImagenStep extends BaseStep {
    */
   private buildProvider(): ImagenProvider {
     const settings = getSettings();
-    const { provider, apiKey, model, fallbackProviders } = settings.imagen;
+    const { provider, fallbackProviders } = settings.imagen;
+    const primaryCreds = resolveImagenCredentials(provider);
 
     // Simple path: no fallback list configured
     if (!fallbackProviders || fallbackProviders.length === 0) {
-      return createImagenProvider({ provider, apiKey, model });
+      return createImagenProvider({ provider, apiKey: primaryCreds.apiKey, model: primaryCreds.model });
     }
 
     // Build the ordered entry list: primary first, then fallbacks
+    // Fallback entries also resolve per-engine keys
     const entries: FallbackProviderEntry[] = [
-      { provider, apiKey, model },
-      ...fallbackProviders,
+      { provider, apiKey: primaryCreds.apiKey, model: primaryCreds.model },
+      ...fallbackProviders.map(fp => {
+        const fpCreds = resolveImagenCredentials(fp.provider);
+        return { provider: fp.provider, apiKey: fp.apiKey || fpCreds.apiKey, model: fp.model || fpCreds.model };
+      }),
     ];
 
     // Try to create an LLM provider for Level-3 prompt rewriting.

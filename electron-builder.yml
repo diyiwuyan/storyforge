@@ -38,11 +38,12 @@ mac:
     - dmg
 
 # ---- 自动更新发布配置 ----
-# 使用 generic provider：只需将安装包和 latest.yml 放到任意静态文件服务器
+# 使用 GitHub Release 作为更新源
+# electron-updater 会自动检查 https://github.com/{owner}/{repo}/releases/latest
 # 发布步骤：
 #   1. npm run build 生成 release/ 目录
-#   2. 将 release/ 下的 .exe 和 latest.yml 上传到下方 url 对应的目录
-#   3. 应用启动后会自动检查 {url}/latest.yml 判断是否有新版本
+#   2. gh release create vX.Y.Z 并上传 .exe + latest.yml + .blockmap
+#   3. 应用启动后自动检查是否有新版本
 publish:
   provider: github
   owner: diyiwuyan

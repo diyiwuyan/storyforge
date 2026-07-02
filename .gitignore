@@ -35,8 +35,4 @@ screenshot*.png
 *.tmp
 
 # Release — only keep installer .exe, .yml, .blockmap; ignore unpacked dir
-release/win-unpacked/
-release/mac/
-release/linux-unpacked/
-release/builder-effective-config.yml
-# NOTE: release/*.exe, release/latest.yml, release/*.blockmap are committed for distribution
+release/

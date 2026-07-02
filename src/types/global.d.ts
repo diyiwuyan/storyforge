@@ -65,6 +65,7 @@ interface StoryForgeAPI {
     selectFolder: () => Promise<string | null>;
     openFolder: (path: string) => Promise<void>;
     openCapcutDrafts: () => Promise<void>;
+    openExternal: (url: string) => Promise<void>;
   };
   bgm: {
     list: () => Promise<BGMItem[]>;

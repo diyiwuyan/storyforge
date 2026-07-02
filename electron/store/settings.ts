@@ -11,6 +11,12 @@ export interface ImagenFallbackEntry {
   model?: string;
 }
 
+/** Per-engine API key & model configuration. */
+export interface ProviderKeyEntry {
+  apiKey: string;
+  model?: string;
+}
+
 /** Configuration for LLM backup/fallback provider. */
 export interface LLMBackupEntry {
   provider: string;  // same values as llm.provider
@@ -27,9 +33,17 @@ export interface AppSettings {
     backup?: LLMBackupEntry;
   };
   imagen: {
-    provider: string;  // 'siliconflow' | 'replicate' | 'jimeng' | 'modelscope'
+    provider: string;  // 'siliconflow' | 'replicate' | 'jimeng' | 'modelscope' | 'agnes'
     apiKey: string;
     model?: string;
+    /**
+     * Per-engine API key & model overrides.
+     * Key = provider name, Value = { apiKey, model? }.
+     * When an engine is selected (either in Settings or ImageLab),
+     * the system first checks providerKeys[engine]; if absent,
+     * falls back to the top-level apiKey / model.
+     */
+    providerKeys?: Record<string, ProviderKeyEntry>;
     /**
      * Optional ordered list of additional fallback providers.
      * When configured (and containing at least one entry), the
@@ -73,6 +87,25 @@ export function setSettings(settings: Partial<AppSettings>): void {
   Object.entries(settings).forEach(([key, value]) => {
     store.set(key, value);
   });
+}
+
+/**
+ * Resolve the API key and model for a specific imagen provider.
+ *
+ * Lookup order:
+ *  1. providerKeys[providerName]  — per-engine override
+ *  2. top-level imagen.apiKey / imagen.model  — legacy fallback
+ *
+ * This allows backward compatibility (single key for all engines)
+ * while supporting per-engine keys when configured.
+ */
+export function resolveImagenCredentials(providerName: string): { apiKey: string; model?: string } {
+  const { imagen } = getSettings();
+  const entry = imagen.providerKeys?.[providerName];
+  if (entry?.apiKey) {
+    return { apiKey: entry.apiKey, model: entry.model };
+  }
+  return { apiKey: imagen.apiKey, model: imagen.model };
 }
 
 export { store };

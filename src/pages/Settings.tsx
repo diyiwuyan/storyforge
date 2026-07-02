@@ -51,6 +51,8 @@ function Settings() {
   const [imageProvider, setImageProvider] = useState('siliconflow');
   const [imageKey, setImageKey] = useState('');
   const [imagenModel, setImagenModel] = useState('');
+  // Per-engine API key & model overrides
+  const [providerKeys, setProviderKeys] = useState<Record<string, { apiKey: string; model: string }>>({});
   const [ttsProvider, setTtsProvider] = useState('edge');
   const [ttsVoice, setTtsVoice] = useState('zh-CN-YunxiNeural');
   const [ttsAppId, setTtsAppId] = useState('');
@@ -102,6 +104,14 @@ function Settings() {
         setImageProvider(s.imagen?.provider || 'siliconflow');
         setImageKey(s.imagen?.apiKey || '');
         setImagenModel(s.imagen?.model || '');
+        // Load per-engine keys — convert to { apiKey, model } with defaults
+        if (s.imagen?.providerKeys) {
+          const loaded: Record<string, { apiKey: string; model: string }> = {};
+          for (const [k, v] of Object.entries(s.imagen.providerKeys)) {
+            loaded[k] = { apiKey: (v as any).apiKey || '', model: (v as any).model || '' };
+          }
+          setProviderKeys(loaded);
+        }
         setTtsProvider(s.tts?.provider || 'edge');
         setTtsVoice(s.tts?.voice || 'zh-CN-YunxiNeural');
         setTtsAppId(s.tts?.appId || '');
@@ -214,6 +224,11 @@ function Settings() {
           provider: imageProvider,
           apiKey: imageKey,
           model: imagenModel || undefined,
+          // Per-engine API key overrides — only save entries that have a key
+          providerKeys: Object.fromEntries(
+            Object.entries(providerKeys).filter(([, v]) => v.apiKey)
+              .map(([k, v]) => [k, { apiKey: v.apiKey, ...(v.model ? { model: v.model } : {}) }])
+          ),
           ...(fallbackEnabled && fallbackProviders.length > 0 ? { fallbackProviders } : {}),
         },
         tts: {
@@ -366,7 +381,7 @@ function Settings() {
         <h3 className="text-sm font-medium text-gray-400 mb-4">生图服务</h3>
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">服务提供商</label>
+            <label className="block text-xs text-gray-500 mb-1">默认引擎（Pipeline 使用）</label>
             <select
               value={imageProvider}
               onChange={(e) => setImageProvider(e.target.value)}
@@ -379,26 +394,59 @@ function Settings() {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">API Key</label>
-            <input
-              type="password"
-              value={imageKey}
-              onChange={(e) => setImageKey(e.target.value)}
-              placeholder="输入生图服务 API Key"
-              className="w-full rounded-lg bg-[#0c121c] border border-white/10 px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-[#34d399] transition-colors"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">模型名称（可选）</label>
-            <input
-              type="text"
-              value={imagenModel}
-              onChange={(e) => setImagenModel(e.target.value)}
-              placeholder={`留空则使用默认: ${IMAGEN_DEFAULT_MODELS[imageProvider] || '默认模型'}`}
-              className="w-full rounded-lg bg-[#0c121c] border border-white/10 px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-[#34d399] transition-colors"
-            />
-          </div>
+          <p className="text-xs text-gray-600">
+            为每个引擎单独配置 API Key，画图实验室切换引擎时会自动使用对应的 Key
+          </p>
+
+          {/* Per-engine key configuration */}
+          {IMAGE_PROVIDERS.map((p) => {
+            const pk = providerKeys[p.value] || { apiKey: '', model: '' };
+            const isDefault = p.value === imageProvider;
+            return (
+              <div
+                key={p.value}
+                className={`rounded-lg border px-4 py-3 space-y-2 transition-colors ${
+                  isDefault
+                    ? 'border-[#34d399]/30 bg-[#34d399]/5'
+                    : 'border-white/10 bg-[#0c121c]'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-200 font-medium">{p.label}</span>
+                  {isDefault && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#34d399]/20 text-[#34d399]">默认</span>
+                  )}
+                  {pk.apiKey && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">已配置</span>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  value={pk.apiKey}
+                  onChange={(e) => {
+                    setProviderKeys({
+                      ...providerKeys,
+                      [p.value]: { ...pk, apiKey: e.target.value },
+                    });
+                  }}
+                  placeholder="API Key"
+                  className="w-full rounded-lg bg-[#0a0f18] border border-white/10 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-[#34d399] transition-colors"
+                />
+                <input
+                  type="text"
+                  value={pk.model}
+                  onChange={(e) => {
+                    setProviderKeys({
+                      ...providerKeys,
+                      [p.value]: { ...pk, model: e.target.value },
+                    });
+                  }}
+                  placeholder={`模型（留空使用默认: ${IMAGEN_DEFAULT_MODELS[p.value] || '默认'}）`}
+                  className="w-full rounded-lg bg-[#0a0f18] border border-white/10 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-[#34d399] transition-colors"
+                />
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -784,6 +832,9 @@ function Settings() {
   );
 }
 
+/** GitHub Release 页面地址 */
+const GITHUB_RELEASE_URL = 'https://github.com/diyiwuyan/storyforge/releases/latest';
+
 /** 应用更新管理组件 */
 function UpdateSection() {
   const [info, setInfo] = useState<UpdaterInfo | null>(null);
@@ -805,6 +856,10 @@ function UpdateSection() {
     } catch {
       setChecking(false);
     }
+  };
+
+  const handleOpenReleasePage = () => {
+    window.storyforge?.system?.openExternal?.(GITHUB_RELEASE_URL);
   };
 
   const STATUS_LABELS: Record<string, string> = {
@@ -834,37 +889,44 @@ function UpdateSection() {
             )}
           </div>
           {info?.status === 'error' && info.error && (
-            <div className="text-xs text-red-400/70 mt-0.5">{info.error}</div>
+            <div className="text-xs text-red-400/70 mt-1">
+              {info.error}
+              <div className="mt-1 text-gray-500">
+                如果自动检查失败（可能因网络限制），请点击下方「手动下载」前往 GitHub 下载最新版本
+              </div>
+            </div>
           )}
         </div>
 
-        {(!info || info.status === 'idle' || info.status === 'not-available' || info.status === 'error') && (
-          <button
-            onClick={handleCheck}
-            disabled={checking}
-            className="shrink-0 px-4 py-2 rounded-lg text-sm text-gray-300 bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-50 transition-colors"
-          >
-            {checking ? '检查中...' : '检查更新'}
-          </button>
-        )}
+        <div className="shrink-0 flex flex-col gap-2">
+          {(!info || info.status === 'idle' || info.status === 'not-available' || info.status === 'error') && (
+            <button
+              onClick={handleCheck}
+              disabled={checking}
+              className="px-4 py-2 rounded-lg text-sm text-gray-300 bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-50 transition-colors"
+            >
+              {checking ? '检查中...' : '检查更新'}
+            </button>
+          )}
 
-        {info?.status === 'available' && (
-          <button
-            onClick={() => window.storyforge?.updater?.download?.()}
-            className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-[#34d399] to-[#059669] hover:from-[#2cc88e] hover:to-[#047857] transition-all"
-          >
-            下载更新
-          </button>
-        )}
+          {info?.status === 'available' && (
+            <button
+              onClick={() => window.storyforge?.updater?.download?.()}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-[#34d399] to-[#059669] hover:from-[#2cc88e] hover:to-[#047857] transition-all"
+            >
+              下载更新
+            </button>
+          )}
 
-        {info?.status === 'downloaded' && (
-          <button
-            onClick={() => window.storyforge?.updater?.install?.()}
-            className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-400 hover:to-blue-600 transition-all"
-          >
-            重启并安装
-          </button>
-        )}
+          {info?.status === 'downloaded' && (
+            <button
+              onClick={() => window.storyforge?.updater?.install?.()}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-400 hover:to-blue-600 transition-all"
+            >
+              重启并安装
+            </button>
+          )}
+        </div>
       </div>
 
       {info?.status === 'downloading' && (
@@ -881,6 +943,19 @@ function UpdateSection() {
           {info.releaseNotes}
         </div>
       )}
+
+      {/* Manual download fallback */}
+      <div className="pt-2 border-t border-white/5">
+        <button
+          onClick={handleOpenReleasePage}
+          className="text-xs text-gray-500 hover:text-[#34d399] transition-colors underline underline-offset-2"
+        >
+          手动下载 → 前往 GitHub Release 页面
+        </button>
+        <p className="text-xs text-gray-600 mt-1">
+          如果自动更新不可用（如公司内网 DNS 限制），可手动下载 EXE 安装包覆盖安装
+        </p>
+      </div>
     </div>
   );
 }

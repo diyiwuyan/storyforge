@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import { projectManager } from '../../pipeline/project-manager';
 import { pipelineEngine } from '../../pipeline/pipeline-engine';
-import { getSettings, setSettings } from '../../store/settings';
+import { getSettings, setSettings, resolveImagenCredentials } from '../../store/settings';
 import type { AppSettings } from '../../store/settings';
 import { getMainWindow } from '../window-manager';
 import type { ProjectConfig, StepId } from '../../pipeline/types';
@@ -167,10 +167,11 @@ export function registerIpcHandlers(): void {
       // 2. Generate image (use engine param if provided, otherwise fall back to settings)
       const { createImagenProvider } = await import('../../providers/imagen/factory');
       const imagenProviderName = params.engine || settings.imagen.provider;
+      const creds = resolveImagenCredentials(imagenProviderName);
       const provider = createImagenProvider({
         provider: imagenProviderName,
-        apiKey: settings.imagen.apiKey,
-        model: settings.imagen.model,
+        apiKey: creds.apiKey,
+        model: creds.model,
       });
 
       // Save to temp directory
@@ -285,6 +286,10 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('system:openFolder', async (_event, folderPath: string) => {
     await shell.openPath(folderPath);
+  });
+
+  ipcMain.handle('system:openExternal', async (_event, url: string) => {
+    await shell.openExternal(url);
   });
 
   ipcMain.handle('system:openCapcutDrafts', async () => {
