@@ -47,4 +47,3 @@ publish:
   provider: github
   owner: diyiwuyan
   repo: storyforge
-  private: true
